@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AMEBA — ИИ Чат-бот</title>
+    <meta name="description" content="AMEBA — Элегантный минималистичный ИИ чат-бот в эстетике Graphite on Warm Paper с Firebase Auth" />
+    <meta property="og:title" content="AMEBA — ИИ Чат-бот" />
+    <meta property="og:description" content="AMEBA — Элегантный минималистичный ИИ чат-бот в эстетике Graphite on Warm Paper с Firebase Auth" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      (function() {
+        try {
+          var stored = localStorage.getItem('ameba_theme_v1');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = stored === 'dark' || (stored !== 'light' && prefersDark);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.setAttribute('data-theme', 'dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.setAttribute('data-theme', 'light');
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

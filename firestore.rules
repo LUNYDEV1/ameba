@@ -1,0 +1,103 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation helper for User Profile
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['email', 'createdAt']) &&
+             data.keys().hasOnly(['displayName', 'email', 'photoURL', 'createdAt', 'updatedAt']) &&
+             data.email is string && data.email.size() <= 200 &&
+             data.createdAt is string && data.createdAt.size() <= 64 &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    // Validation helper for Chat thread
+    function isValidChat(data) {
+      return data.keys().hasAll(['userId', 'title', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['userId', 'title', 'model', 'pinned', 'createdAt', 'updatedAt']) &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() <= 200 &&
+             data.createdAt is string && data.createdAt.size() <= 64 &&
+             data.updatedAt is string && data.updatedAt.size() <= 64 &&
+             (!('model' in data) || (data.model is string && data.model.size() <= 64)) &&
+             (!('pinned' in data) || data.pinned is bool);
+    }
+
+    // Validation helper for Message
+    function isValidMessage(data) {
+      return data.keys().hasAll(['chatId', 'userId', 'role', 'content', 'createdAt']) &&
+             data.keys().hasOnly(['chatId', 'userId', 'role', 'content', 'createdAt']) &&
+             data.chatId is string && data.chatId.size() <= 128 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.role in ['user', 'assistant', 'system'] &&
+             data.content is string && data.content.size() <= 100000 &&
+             data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    // User profile documents
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming());
+      allow update: if isOwner(userId) && isValidUserProfile(incoming()) &&
+                       incoming().email == existing().email &&
+                       incoming().createdAt == existing().createdAt;
+      allow delete: if isOwner(userId);
+
+      // User's chat conversations
+      match /chats/{chatId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(chatId) &&
+                         isValidChat(incoming()) &&
+                         incoming().userId == userId;
+        allow update: if isOwner(userId) &&
+                         isValidChat(incoming()) &&
+                         incoming().userId == userId &&
+                         incoming().createdAt == existing().createdAt;
+        allow delete: if isOwner(userId);
+
+        // Messages within a chat
+        match /messages/{messageId} {
+          allow get, list: if isOwner(userId);
+          allow create: if isOwner(userId) && isValidId(messageId) &&
+                           isValidMessage(incoming()) &&
+                           incoming().userId == userId &&
+                           incoming().chatId == chatId;
+          allow update: if isOwner(userId) &&
+                           isValidMessage(incoming()) &&
+                           incoming().userId == userId &&
+                           incoming().chatId == chatId &&
+                           incoming().createdAt == existing().createdAt;
+          allow delete: if isOwner(userId);
+        }
+      }
+    }
+  }
+}
