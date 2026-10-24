@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 
@@ -82,7 +83,16 @@ app.get('/api/health', (req: Request, res: Response) => {
 });
 
 async function startServer() {
-  if (!isProd) {
+  const distIndexPath = path.resolve('dist', 'index.html');
+  const hasDistBuild = fs.existsSync(distIndexPath);
+
+  if (isProd && hasDistBuild) {
+    app.use(express.static(path.resolve('dist')));
+    app.get('*', (_req, res) => {
+      res.sendFile(distIndexPath);
+    });
+  } else {
+    // Vite middleware fallback for dev or when dist build is missing
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
@@ -91,11 +101,6 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.resolve('dist')));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.resolve('dist', 'index.html'));
-    });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
