@@ -1,9 +1,19 @@
+export interface WebSource {
+  title: string;
+  url: string;
+  snippet?: string;
+}
+
 export interface Message {
   id: string;
   chatId: string;
   userId: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  reasoningContent?: string; // Real-time streaming thinking process
+  thinkingTimeSeconds?: number; // Total seconds spent in reasoning phase
+  isThinking?: boolean; // Active thinking status during streaming
+  sources?: WebSource[]; // Real web search sources retrieved live
   createdAt: string;
   isStreaming?: boolean;
 }
@@ -38,17 +48,19 @@ export interface ModelOption {
   badge?: string;
   contextWindow: string;
   speed: string;
+  supportsThinking?: boolean;
 }
 
 export const AVAILABLE_MODELS: ModelOption[] = [
   {
     id: 'ameba-1.2-flash',
     name: 'AMEBA 1.2 FLASH',
-    tagline: 'Быстрый и универсальный',
-    description: 'Основная скоростная модель AMEBA для анализа, кода и текстовых задач',
+    tagline: 'Быстрый и универсальный с Thinking Mode',
+    description: 'Основная скоростная модель AMEBA с поддержкой реального пошагового мышления и веб-поиска',
     badge: 'Основная',
     contextWindow: '1M токенов',
     speed: 'Сверхбыстрый',
+    supportsThinking: true,
   },
 ];
 

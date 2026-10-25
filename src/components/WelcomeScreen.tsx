@@ -26,11 +26,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-[768px] mx-auto w-full transition-colors">
+    <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-[768px] mx-auto w-full transition-colors animate-fade-in">
       {/* Welcome Header */}
       <div className="text-center mb-8 max-w-[560px]">
-        {/* Ameba Outline Emblem */}
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full border border-black/10 dark:border-white/15 bg-black/[0.02] dark:bg-white/[0.04] text-[#0d0d0d] dark:text-[#f0f0f0] mb-4">
+        {/* Ameba Outline Emblem with gentle organic pulse */}
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full border border-black/10 dark:border-white/15 bg-black/[0.02] dark:bg-white/[0.04] text-[#0d0d0d] dark:text-[#f0f0f0] mb-4 animate-ameba-pulse transition-transform duration-300 hover:scale-110">
           <AmebaLogo className="w-8 h-8" strokeWidth={1.8} />
         </div>
 
@@ -43,20 +43,20 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         </p>
       </div>
 
-      {/* Starter Prompts Grid */}
+      {/* Starter Prompts Grid with subtle stagger and elevation hover */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
         {STARTER_PROMPTS.map((prompt) => (
           <button
             key={prompt.id}
             onClick={() => onSelectPrompt(prompt.prompt)}
-            className="group relative p-3.5 text-left rounded-[10px] bg-white dark:bg-[#181818] border border-black/10 dark:border-white/10 hover:border-black/25 dark:hover:border-white/25 hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-all flex flex-col justify-between"
+            className="group relative p-3.5 text-left rounded-[10px] bg-white dark:bg-[#181818] border border-black/10 dark:border-white/10 hover:border-black/25 dark:hover:border-white/25 hover:bg-black/[0.02] dark:hover:bg-white/[0.03] hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200 animate-fade-in-up flex flex-col justify-between"
           >
             <div>
               <div className="flex items-center justify-between mb-2">
-                <div className="p-1 rounded-[6px] bg-[#f9f9f9] dark:bg-[#242424]">
+                <div className="p-1 rounded-[6px] bg-[#f9f9f9] dark:bg-[#242424] group-hover:scale-110 transition-transform duration-200">
                   {getCategoryIcon(prompt.category)}
                 </div>
-                <ArrowUpRight className="w-3.5 h-3.5 text-[#8f8f8f] dark:text-[#737373] group-hover:text-[#0d0d0d] dark:group-hover:text-white transition-colors" />
+                <ArrowUpRight className="w-3.5 h-3.5 text-[#8f8f8f] dark:text-[#737373] group-hover:text-[#0d0d0d] dark:group-hover:text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-200" />
               </div>
               <h3 className="text-[14px] font-medium text-[#0d0d0d] dark:text-[#f0f0f0] leading-snug group-hover:text-black dark:group-hover:text-white">
                 {prompt.title}

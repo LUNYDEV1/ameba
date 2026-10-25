@@ -13,6 +13,7 @@ interface SettingsModalProps {
   chats: Chat[];
   onClearAllChats: () => void;
   currentChatTitle?: string;
+  onOpenLegal?: (tab?: 'privacy' | 'terms' | 'security') => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -25,6 +26,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   chats,
   onClearAllChats,
   currentChatTitle,
+  onOpenLegal,
 }) => {
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<'general' | 'system' | 'data'>('general');
@@ -71,13 +73,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/75 transition-colors"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/75 transition-colors animate-fade-in"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div 
-        className="relative w-full max-w-[520px] rounded-[10px] bg-white dark:bg-[#181818] p-6 border text-[#0d0d0d] dark:text-[#f0f0f0] max-h-[90vh] flex flex-col border-black/10 dark:border-white/10 transition-colors"
+        className="relative w-full max-w-[520px] rounded-[10px] bg-white dark:bg-[#181818] p-6 border text-[#0d0d0d] dark:text-[#f0f0f0] max-h-[90vh] flex flex-col border-black/10 dark:border-white/10 transition-colors animate-scale-in shadow-xl"
       >
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-black/10 dark:border-white/10">
@@ -304,7 +306,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="pt-4 mt-2 border-t border-black/10 dark:border-white/10 flex justify-end">
+        <div className="pt-4 mt-2 border-t border-black/10 dark:border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-[12px] text-[#8f8f8f] dark:text-[#737373]">
+            <Shield className="w-3.5 h-3.5" />
+            <button
+              onClick={() => { onClose(); onOpenLegal?.('privacy'); }}
+              className="hover:underline text-[#0d0d0d] dark:text-[#f0f0f0]"
+            >
+              Юридические политики
+            </button>
+          </div>
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-[10px] bg-[#0d0d0d] dark:bg-white text-white dark:text-[#0d0d0d] text-[13px] font-medium hover:bg-black dark:hover:bg-zinc-200 transition-colors"

@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ArrowRight, CheckCircle2, Lock } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
 import { AmebaLogo } from './AmebaLogo';
+import { SmartCaptcha } from '@yandex/smart-captcha';
 
-export const AuthScreen: React.FC = () => {
+interface AuthScreenProps {
+  onOpenLegal?: (tab?: 'privacy' | 'terms' | 'security') => void;
+}
+
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onOpenLegal }) => {
   const { 
     signInWithGoogle, 
     signInWithEmail, 
@@ -19,9 +24,15 @@ export const AuthScreen: React.FC = () => {
   const [displayName, setDisplayName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!captchaToken) {
+      setAuthError('Пожалуйста, пройдите проверку Yandex SmartCaptcha');
+      return;
+    }
+
     setSubmitting(true);
     setAuthError(null);
 
@@ -47,6 +58,10 @@ export const AuthScreen: React.FC = () => {
   };
 
   const handleGoogleSignIn = async () => {
+    if (!captchaToken) {
+      setAuthError('Пожалуйста, пройдите проверку Yandex SmartCaptcha');
+      return;
+    }
     setSubmitting(true);
     setAuthError(null);
     try {
@@ -59,93 +74,80 @@ export const AuthScreen: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-screen bg-[#f9f9f9] dark:bg-[#121212] flex flex-col justify-between p-4 sm:p-6 text-[#0d0d0d] dark:text-[#f0f0f0] transition-colors">
-      {/* Top minimal brand bar */}
-      <header className="max-w-[1100px] w-full mx-auto flex items-center justify-between py-2">
+    <div className="min-h-screen w-full bg-[#f9f9f9] dark:bg-[#121212] flex flex-col justify-between p-4 sm:p-6 transition-colors">
+      {/* Top Bar with Branding & Status */}
+      <header className="w-full max-w-[1200px] mx-auto flex items-center justify-between py-2">
         <div className="flex items-center gap-2.5">
-          <AmebaLogo className="w-8 h-8 text-[#0d0d0d] dark:text-[#f0f0f0]" strokeWidth={1.8} />
+          <div className="w-8 h-8 rounded-[8px] border border-black/10 dark:border-white/15 bg-black/[0.02] dark:bg-white/[0.04] text-[#0d0d0d] dark:text-[#f0f0f0] flex items-center justify-center">
+            <AmebaLogo className="w-5 h-5" strokeWidth={1.8} />
+          </div>
           <span className="font-semibold text-[17px] tracking-tight text-[#0d0d0d] dark:text-[#f0f0f0]">
             AMEBA
           </span>
         </div>
-        <div className="text-[12px] font-mono text-[#5d5d5d] dark:text-[#a3a3a3] px-2.5 py-1 rounded-[6px] bg-white dark:bg-[#1a1a1a] border border-black/8 dark:border-white/10">
-          Auth Required
+
+        <div className="text-[12px] font-mono text-[#5d5d5d] dark:text-[#a3a3a3] px-2.5 py-1 rounded-[6px] bg-white dark:bg-[#1a1a1a] border border-black/8 dark:border-white/10 flex items-center gap-1.5">
+          <Lock className="w-3 h-3" />
+          <span>Auth Required</span>
         </div>
       </header>
 
       {/* Main Centered Auth Form */}
       <main className="max-w-[440px] w-full mx-auto my-auto py-8">
         <div 
-          className="rounded-[10px] bg-white dark:bg-[#181818] p-6 sm:p-8 border border-black/10 dark:border-white/10 text-[#0d0d0d] dark:text-[#f0f0f0] transition-colors"
+          className="rounded-[10px] bg-white dark:bg-[#181818] p-6 sm:p-8 border border-black/10 dark:border-white/10 text-[#0d0d0d] dark:text-[#f0f0f0] transition-colors animate-scale-in"
         >
           {/* Header */}
           <div className="mb-6 text-center">
             <span className="inline-block text-[11px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-none bg-[#f9f9f9] dark:bg-[#202020] border border-black/10 dark:border-white/10 text-[#0d0d0d] dark:text-[#f0f0f0] mb-3">
               Обязательная авторизация
             </span>
-            <h1 className="text-[24px] font-semibold leading-[1.3] text-[#0d0d0d] dark:text-[#f0f0f0]">
+            <h1 className="text-[22px] font-bold text-[#0d0d0d] dark:text-[#f0f0f0] tracking-tight">
               {mode === 'signin' && 'Вход в AMEBA'}
-              {mode === 'signup' && 'Регистрация в AMEBA'}
+              {mode === 'signup' && 'Создание аккаунта'}
               {mode === 'reset' && 'Восстановление доступа'}
             </h1>
-            <p className="text-[14px] leading-[1.5] text-[#5d5d5d] dark:text-[#a3a3a3] mt-2">
-              {mode === 'signin' && 'Для работы с диалогами и моделью ИИ войдите в систему'}
-              {mode === 'signup' && 'Создайте учетную запись для персонального доступа к платформе'}
-              {mode === 'reset' && 'Укажите email, привязанный к вашему аккаунту'}
+            <p className="text-[13px] text-[#5d5d5d] dark:text-[#a3a3a3] mt-1">
+              Для работы с диалогами и моделью ИИ войдите в систему
             </p>
           </div>
 
-          {/* Auth Error Banner */}
+          {/* Error Banner */}
           {authError && (
-            <div className="mb-5 p-3 rounded-[10px] bg-[#f9f9f9] dark:bg-[#222] border border-black/15 dark:border-white/15 text-[13px] text-[#0d0d0d] dark:text-[#f0f0f0] leading-snug flex items-start gap-2">
-              <span className="font-semibold text-xs mt-0.5">Внимание:</span>
-              <span>{authError}</span>
+            <div className="mb-4 p-3 rounded-[8px] bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-[13px]">
+              {authError}
             </div>
           )}
 
+          {/* Success Banner for Password Reset */}
           {resetSent ? (
-            <div className="py-6 text-center space-y-3">
-              <div className="w-10 h-10 rounded-full mx-auto flex items-center justify-center bg-[#f9f9f9] dark:bg-[#222] border border-black/10 dark:border-white/10">
-                <CheckCircle2 className="w-5 h-5 text-[#0d0d0d] dark:text-white" />
-              </div>
-              <p className="text-[14px] text-[#0d0d0d] dark:text-[#f0f0f0] font-medium">Ссылка отправлена на {email}</p>
-              <p className="text-[13px] text-[#5d5d5d] dark:text-[#a3a3a3]">Проверьте почту и следуйте инструкциям для сброса пароля.</p>
+            <div className="p-4 rounded-[8px] bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-center">
+              <CheckCircle2 className="w-8 h-8 text-[#0d0d0d] dark:text-white mx-auto mb-2" />
+              <h3 className="font-semibold text-[14px]">Ссылка отправлена</h3>
+              <p className="text-[12px] text-[#5d5d5d] dark:text-[#a3a3a3] mt-1">
+                Проверьте ваш почтовый ящик для восстановления пароля
+              </p>
               <button
-                onClick={() => {
-                  setResetSent(false);
-                  setMode('signin');
-                }}
-                className="mt-4 w-full py-2.5 px-4 rounded-[10px] bg-[#0d0d0d] dark:bg-white text-white dark:text-[#0d0d0d] text-[14px] font-medium hover:bg-black dark:hover:bg-zinc-200 transition-colors"
+                onClick={() => { setResetSent(false); setMode('signin'); }}
+                className="mt-3 text-[12px] font-medium underline text-[#0d0d0d] dark:text-white"
               >
-                Вернуться ко входу
+                Вернуться к входу
               </button>
             </div>
           ) : (
             <>
-              {/* Google One-Click Button */}
+              {/* Google One-Tap / OAuth Button */}
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={submitting}
-                className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-[10px] bg-white dark:bg-[#202020] border border-black/15 dark:border-white/15 text-[14px] font-medium text-[#0d0d0d] dark:text-[#f0f0f0] hover:bg-black/5 dark:hover:bg-white/5 transition-all disabled:opacity-50"
+                className="w-full py-2.5 px-4 rounded-[10px] bg-white dark:bg-[#141414] border border-black/15 dark:border-white/15 text-[#0d0d0d] dark:text-[#f0f0f0] text-[14px] font-medium flex items-center justify-center gap-2.5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-                  />
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                 </svg>
                 <span>Войти через Google</span>
               </button>
@@ -218,6 +220,14 @@ export const AuthScreen: React.FC = () => {
                   </div>
                 )}
 
+                {/* YANDEX SMARTCAPTCHA INTEGRATION */}
+                <div className="my-3 flex justify-center">
+                  <SmartCaptcha
+                    sitekey="ysc1_3cIeBJkSBR0HHwvLyI5dot9ipolHvYCUWluqgIg5e3860d7b"
+                    onSuccess={setCaptchaToken}
+                  />
+                </div>
+
                 <button
                   type="submit"
                   disabled={submitting}
@@ -239,20 +249,18 @@ export const AuthScreen: React.FC = () => {
                   <div>
                     Впервые в AMEBA?{' '}
                     <button
-                      type="button"
                       onClick={() => setMode('signup')}
-                      className="font-medium text-[#0d0d0d] dark:text-white underline decoration-[rgba(0,0,0,0.3)] dark:decoration-white/30 hover:decoration-[#0d0d0d] dark:hover:decoration-white"
+                      className="font-medium text-[#0d0d0d] dark:text-white hover:underline"
                     >
                       Создать аккаунт
                     </button>
                   </div>
                 ) : (
                   <div>
-                    Уже есть учетная запись?{' '}
+                    Уже есть аккаунт?{' '}
                     <button
-                      type="button"
                       onClick={() => setMode('signin')}
-                      className="font-medium text-[#0d0d0d] dark:text-white underline decoration-[rgba(0,0,0,0.3)] dark:decoration-white/30 hover:decoration-[#0d0d0d] dark:hover:decoration-white"
+                      className="font-medium text-[#0d0d0d] dark:text-white hover:underline"
                     >
                       Войти
                     </button>
@@ -261,19 +269,29 @@ export const AuthScreen: React.FC = () => {
               </div>
             </>
           )}
+        </div>
 
-          {/* Security note */}
-          <div className="mt-6 flex items-center justify-center gap-1.5 text-[12px] text-[#8f8f8f] dark:text-[#737373]">
-            <Lock className="w-3.5 h-3.5" />
-            <span>Защита Firebase Authentication и Firestore</span>
-          </div>
+        {/* Protection Footer Badge */}
+        <div className="mt-4 flex items-center justify-center gap-2 text-[12px] text-[#8f8f8f] dark:text-[#737373]">
+          <ShieldCheck className="w-3.5 h-3.5 text-[#5d5d5d] dark:text-[#a3a3a3]" />
+          <span>Защита Yandex SmartCaptcha & Firebase Auth</span>
         </div>
       </main>
 
-      {/* Footer Info */}
-      <footer className="max-w-[700px] w-full mx-auto text-center py-4 text-[12px] text-[#8f8f8f] dark:text-[#737373] space-y-1">
-        <p>AMEBA — минималистичная интеллектуальная платформа в эстетике Graphite on Warm Paper.</p>
-        <p>Для обеспечения приватности доступ предоставляется только авторизованным пользователям.</p>
+      {/* Footer copyright & Policy Links */}
+      <footer className="w-full max-w-[1200px] mx-auto text-center py-2 text-[12px] text-[#8f8f8f] dark:text-[#737373] flex flex-wrap items-center justify-center gap-3">
+        <span>© AMEBA AI.</span>
+        <button onClick={() => onOpenLegal?.('privacy')} className="hover:underline text-[#0d0d0d] dark:text-[#f0f0f0]">
+          Политика конфиденциальности
+        </button>
+        <span>•</span>
+        <button onClick={() => onOpenLegal?.('terms')} className="hover:underline text-[#0d0d0d] dark:text-[#f0f0f0]">
+          Условия использования
+        </button>
+        <span>•</span>
+        <button onClick={() => onOpenLegal?.('security')} className="hover:underline text-[#0d0d0d] dark:text-[#f0f0f0]">
+          Защита данных
+        </button>
       </footer>
     </div>
   );

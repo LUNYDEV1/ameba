@@ -9,6 +9,7 @@ import { WelcomeScreen } from './components/WelcomeScreen';
 import { AuthModal } from './components/AuthModal';
 import { ProfileModal } from './components/ProfileModal';
 import { SettingsModal } from './components/SettingsModal';
+import { LegalModal } from './components/LegalModal';
 import { AuthScreen } from './components/AuthScreen';
 import { Chat, Message, ModelOption, AVAILABLE_MODELS } from './types';
 import { ChatStorage } from './services/chatStorage';
@@ -31,8 +32,15 @@ function MainApp() {
   // Modals state
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isLegalOpen, setIsLegalOpen] = useState(false);
+  const [legalTab, setLegalTab] = useState<'privacy' | 'terms' | 'security'>('privacy');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [creativityMode, setCreativityMode] = useState<'precise' | 'balanced' | 'creative'>('balanced');
+
+  const handleOpenLegal = (tab: 'privacy' | 'terms' | 'security' = 'privacy') => {
+    setLegalTab(tab);
+    setIsLegalOpen(true);
+  };
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -155,8 +163,8 @@ function MainApp() {
   };
 
   const handleSendMessage = async (
-    content: string, 
-    options: { webSearch: boolean; attachedFile?: string }
+    content: string,
+    options: { webSearch: boolean; thinkingMode: boolean; attachedFile?: string }
   ) => {
     let chatId = currentChatId;
 
@@ -200,6 +208,9 @@ function MainApp() {
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     ChatStorage.saveStoredMessages(chatId, newMessages);
+    if (user?.uid) {
+      ChatStorage.persistMessageToFirestore(chatId, userMessage, user.uid);
+    }
 
     // 2. Prepare streaming Assistant Message
     setIsGenerating(true);
@@ -213,6 +224,8 @@ function MainApp() {
       userId: 'assistant',
       role: 'assistant',
       content: '',
+      reasoningContent: '',
+      isThinking: options.thinkingMode,
       createdAt: new Date().toISOString(),
       isStreaming: true,
     };
@@ -226,20 +239,32 @@ function MainApp() {
         content: m.content,
       }));
 
-      const finalContent = await sendChatMessageToAmeba(
+      const result = await sendChatMessageToAmeba(
         apiHistory,
-        systemPrompt,
-        activeModel.id,
-        (accumulated) => {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantMsgId
-                ? { ...m, content: accumulated, isStreaming: true }
-                : m
-            )
-          );
-        },
-        abortController.signal
+        {
+          systemPrompt,
+          model: activeModel.id,
+          webSearch: options.webSearch,
+          thinkingMode: options.thinkingMode,
+          onUpdate: (update) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? {
+                      ...m,
+                      content: update.content,
+                      reasoningContent: update.reasoningContent,
+                      isThinking: update.isThinking,
+                      thinkingTimeSeconds: update.thinkingTimeSeconds,
+                      sources: update.sources,
+                      isStreaming: true,
+                    }
+                  : m
+              )
+            );
+          },
+          signal: abortController.signal,
+        }
       );
 
       const finalAssistantMsg: Message = {
@@ -247,7 +272,9 @@ function MainApp() {
         chatId,
         userId: 'assistant',
         role: 'assistant',
-        content: finalContent,
+        content: result.content,
+        reasoningContent: result.reasoningContent,
+        sources: result.sources,
         createdAt: new Date().toISOString(),
         isStreaming: false,
       };
@@ -255,6 +282,9 @@ function MainApp() {
       const finalMessagesList = [...newMessages, finalAssistantMsg];
       setMessages(finalMessagesList);
       ChatStorage.saveStoredMessages(chatId, finalMessagesList);
+      if (user?.uid) {
+        ChatStorage.persistMessageToFirestore(chatId, finalAssistantMsg, user.uid);
+      }
     } catch (err: unknown) {
       if (abortController.signal.aborted) {
         // Generation was intentionally stopped
@@ -299,7 +329,7 @@ function MainApp() {
     if (lastUserMsg) {
       const trimmed = messages.filter((_, idx) => idx !== messages.length - 1);
       setMessages(trimmed);
-      handleSendMessage(lastUserMsg.content, { webSearch: false });
+      handleSendMessage(lastUserMsg.content, { webSearch: false, thinkingMode: true });
     }
   };
 
@@ -324,6 +354,7 @@ function MainApp() {
         onTogglePinChat={handleTogglePinChat}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenLegal={handleOpenLegal}
       />
 
       {/* Main Conversation Canvas */}
@@ -332,8 +363,6 @@ function MainApp() {
         <Header
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-          activeModel={activeModel}
-          onSelectModel={setActiveModel}
           currentChat={currentChat}
           onNewChat={handleNewChat}
           onClearCurrentChat={handleClearCurrentChat}
@@ -392,6 +421,14 @@ function MainApp() {
         chats={chats}
         onClearAllChats={handleClearAllChats}
         currentChatTitle={currentChat?.title}
+        onOpenLegal={handleOpenLegal}
+      />
+
+      {/* Legal & Policies Modal */}
+      <LegalModal
+        isOpen={isLegalOpen}
+        onClose={() => setIsLegalOpen(false)}
+        defaultTab={legalTab}
       />
 
       {/* Optional Auth Modal for re-auth if needed */}
@@ -402,6 +439,13 @@ function MainApp() {
 
 function AppRoot() {
   const { user, loading } = useAuth();
+  const [isLegalOpen, setIsLegalOpen] = useState(false);
+  const [legalTab, setLegalTab] = useState<'privacy' | 'terms' | 'security'>('privacy');
+
+  const handleOpenLegal = (tab: 'privacy' | 'terms' | 'security' = 'privacy') => {
+    setLegalTab(tab);
+    setIsLegalOpen(true);
+  };
 
   if (loading) {
     return (
@@ -416,7 +460,16 @@ function AppRoot() {
 
   // Mandatory Authentication: if not logged in, render the dedicated AuthScreen
   if (!user) {
-    return <AuthScreen />;
+    return (
+      <>
+        <AuthScreen onOpenLegal={handleOpenLegal} />
+        <LegalModal
+          isOpen={isLegalOpen}
+          onClose={() => setIsLegalOpen(false)}
+          defaultTab={legalTab}
+        />
+      </>
+    );
   }
 
   return <MainApp />;

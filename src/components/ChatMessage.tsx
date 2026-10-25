@@ -1,7 +1,20 @@
 import React, { useState } from 'react';
 import { Message } from '../types';
-import { Copy, Check, RotateCcw, ThumbsUp, ThumbsDown, User as UserIcon } from 'lucide-react';
+import { 
+  Copy, 
+  Check, 
+  RotateCcw, 
+  ThumbsUp, 
+  ThumbsDown, 
+  User as UserIcon,
+  Brain,
+  ChevronDown,
+  ChevronRight,
+  Globe,
+  ExternalLink
+} from 'lucide-react';
 import { AmebaLogo } from './AmebaLogo';
+import hljs from 'highlight.js';
 
 interface ChatMessageProps {
   message: Message;
@@ -16,6 +29,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
+  const [showThinking, setShowThinking] = useState(true);
 
   const handleCopyText = async () => {
     try {
@@ -30,21 +44,32 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const isUser = message.role === 'user';
 
   const renderFormattedContent = (content: string) => {
-    const parts = content.split(/(```[\s\S]*?```)/g);
+    const codeBlockRegex = /(```[a-zA-Z0-9_+-]*\n[\s\S]*?(?:```|$))/g;
+    const parts = content.split(codeBlockRegex);
 
     return parts.map((part, index) => {
-      if (part.startsWith('```') && part.endsWith('```')) {
-        const lines = part.slice(3, -3).trim().split('\n');
-        const firstLine = lines[0].trim();
-        const hasLang = /^[a-zA-Z0-9_-]+$/.test(firstLine);
-        const language = hasLang ? firstLine : 'code';
-        const codeText = hasLang ? lines.slice(1).join('\n') : lines.join('\n');
+      if (part.startsWith('```')) {
+        let raw = part.slice(3);
+        if (raw.endsWith('```')) {
+          raw = raw.slice(0, -3);
+        }
+        const firstLineEnd = raw.indexOf('\n');
+        let language = 'code';
+        let codeText = raw;
+
+        if (firstLineEnd !== -1) {
+          const possibleLang = raw.slice(0, firstLineEnd).trim();
+          if (/^[a-zA-Z0-9_+-]+$/.test(possibleLang)) {
+            language = possibleLang;
+            codeText = raw.slice(firstLineEnd + 1);
+          }
+        }
 
         return (
           <CodeBlock 
             key={index} 
             language={language} 
-            code={codeText} 
+            code={codeText.trimEnd()} 
           />
         );
       }
@@ -54,6 +79,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           {part.split('\n\n').map((paragraph, pIdx) => {
             const trimmed = paragraph.trim();
             if (!trimmed) return null;
+
+            // Auto-detect standalone code statements if backticks were omitted
+            const isCodeStatement = /^(Console\.|System\.out\.|console\.log\(|print\(|printf\(|import\s+|export\s+|using\s+|#include\s+|<[a-zA-Z0-9]+>|def\s+\w+\(|function\s+\w+\().*;?$/s.test(trimmed);
+            if (isCodeStatement) {
+              return (
+                <CodeBlock
+                  key={pIdx}
+                  language="code"
+                  code={trimmed}
+                />
+              );
+            }
 
             // Header 3
             if (trimmed.startsWith('### ')) {
@@ -172,20 +209,22 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   };
 
   return (
-    <div className="py-4 transition-colors">
+    <div className="py-4 transition-colors animate-fade-in-up">
       <div className="max-w-[768px] mx-auto px-4 md:px-6">
         <div className="flex gap-4 items-start">
           {/* Avatar Monogram */}
           <div className="flex-shrink-0 mt-0.5">
             {isUser ? (
               <div 
-                className="w-7 h-7 rounded-[8px] bg-[#f9f9f9] dark:bg-[#222] border border-black/10 dark:border-white/10 flex items-center justify-center text-[12px] font-medium text-[#0d0d0d] dark:text-[#f0f0f0]"
+                className="w-7 h-7 rounded-[8px] bg-[#f9f9f9] dark:bg-[#222] border border-black/10 dark:border-white/10 flex items-center justify-center text-[12px] font-medium text-[#0d0d0d] dark:text-[#f0f0f0] transition-transform duration-200 hover:scale-105"
               >
                 <UserIcon className="w-3.5 h-3.5 text-[#5d5d5d] dark:text-[#a3a3a3]" />
               </div>
             ) : (
               <div 
-                className="w-7 h-7 rounded-[8px] bg-black/[0.04] dark:bg-white/[0.06] border border-black/10 dark:border-white/15 flex items-center justify-center text-[#0d0d0d] dark:text-[#f0f0f0]"
+                className={`w-7 h-7 rounded-[8px] bg-black/[0.04] dark:bg-white/[0.06] border border-black/10 dark:border-white/15 flex items-center justify-center text-[#0d0d0d] dark:text-[#f0f0f0] transition-all duration-200 hover:scale-105 ${
+                  message.isStreaming ? 'animate-ameba-pulse border-black/30 dark:border-white/40' : ''
+                }`}
               >
                 <AmebaLogo className="w-4 h-4" strokeWidth={1.8} />
               </div>
@@ -204,13 +243,81 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               </span>
             </div>
 
+            {/* REAL COLLAPSIBLE THINKING PROCESS BLOCK */}
+            {!isUser && (message.reasoningContent || message.isThinking) && (
+              <div className="mb-3 rounded-[8px] bg-[#f9f9f9] dark:bg-[#161616] border border-black/8 dark:border-white/10 overflow-hidden text-[13px] transition-all">
+                <button
+                  onClick={() => setShowThinking(!showThinking)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-left bg-black/3 dark:bg-white/3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                >
+                  <div className="flex items-center gap-2 font-medium text-[#5d5d5d] dark:text-[#a3a3a3]">
+                    <Brain className={`w-3.5 h-3.5 ${message.isThinking ? 'text-[#0d0d0d] dark:text-white animate-pulse' : ''}`} />
+                    <span>
+                      {message.isThinking
+                        ? `Размышления AMEBA (${message.thinkingTimeSeconds || 1} сек)...`
+                        : `Процесс размышления (${message.thinkingTimeSeconds || 1} сек)`}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[#8f8f8f] dark:text-[#737373]">
+                    <span className="text-[11px] font-mono">{showThinking ? 'Свернуть' : 'Показать'}</span>
+                    {showThinking ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                  </div>
+                </button>
+
+                {showThinking && (
+                  <div className="p-3 border-t border-black/6 dark:border-white/6 font-mono text-[12.5px] leading-relaxed text-[#5d5d5d] dark:text-[#a3a3a3] whitespace-pre-wrap bg-white/50 dark:bg-black/20">
+                    {message.reasoningContent || 'Анализ входных данных и построение пошаговых выводов...'}
+                    {message.isThinking && (
+                      <span className="inline-block w-1.5 h-3.5 ml-1 bg-[#5d5d5d] dark:bg-[#a3a3a3] animate-pulse align-middle" />
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Message Text with Markdown formatting */}
             <div className="text-[#0d0d0d] dark:text-[#f0f0f0] text-[15px] leading-relaxed">
-              {renderFormattedContent(message.content)}
-              {message.isStreaming && (
-                <span className="inline-block w-1.5 h-4 ml-1 bg-[#0d0d0d] dark:bg-white animate-pulse align-middle" />
+              {!message.content && message.isStreaming && !message.reasoningContent ? (
+                <div className="flex items-center gap-1.5 py-2 px-0.5" aria-label="Ожидание ответа">
+                  <span className="w-2 h-2 rounded-full bg-[#0d0d0d] dark:bg-white animate-dot-1" />
+                  <span className="w-2 h-2 rounded-full bg-[#0d0d0d] dark:bg-white animate-dot-2" />
+                  <span className="w-2 h-2 rounded-full bg-[#0d0d0d] dark:bg-white animate-dot-3" />
+                </div>
+              ) : (
+                <>
+                  {renderFormattedContent(message.content)}
+                  {message.isStreaming && !message.isThinking && (
+                    <span className="inline-block w-1.5 h-4 ml-1 bg-[#0d0d0d] dark:bg-white animate-cursor-blink align-middle rounded-[1px]" />
+                  )}
+                </>
               )}
             </div>
+
+            {/* REAL LIVE WEB SEARCH SOURCES BLOCK */}
+            {!isUser && message.sources && message.sources.length > 0 && (
+              <div className="mt-3.5 pt-2.5 border-t border-black/8 dark:border-white/8 text-[12px]">
+                <div className="flex items-center gap-1.5 font-medium text-[#5d5d5d] dark:text-[#a3a3a3] mb-2">
+                  <Globe className="w-3.5 h-3.5 text-[#0d0d0d] dark:text-white" />
+                  <span>Проверено по источникам в сети ({message.sources.length}):</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {message.sources.map((src, idx) => (
+                    <a
+                      key={idx}
+                      href={src.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] bg-[#f9f9f9] dark:bg-[#202020] border border-black/10 dark:border-white/10 text-[#0d0d0d] dark:text-[#f0f0f0] hover:bg-black/5 dark:hover:bg-white/5 hover:border-black/25 dark:hover:border-white/25 transition-all max-w-[280px] group"
+                      title={src.snippet || src.title}
+                    >
+                      <span className="font-mono text-[10px] text-[#8f8f8f] dark:text-[#737373]">[{idx + 1}]</span>
+                      <span className="truncate font-medium text-[11.5px]">{src.title}</span>
+                      <ExternalLink className="w-3 h-3 text-[#8f8f8f] dark:text-[#737373] group-hover:text-[#0d0d0d] dark:group-hover:text-white flex-shrink-0" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Action Bar for Assistant Messages */}
             {!isUser && !message.isStreaming && (
@@ -285,15 +392,29 @@ const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, cod
     }
   };
 
+  const getHighlightedCode = () => {
+    try {
+      const validLang = language && hljs.getLanguage(language) ? language : null;
+      if (validLang) {
+        return hljs.highlight(code, { language: validLang, ignoreIllegals: true }).value;
+      }
+      return hljs.highlightAuto(code).value;
+    } catch {
+      return code.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+  };
+
+  const highlightedHtml = getHighlightedCode();
+
   return (
-    <div className="my-3 rounded-[8px] bg-[#f9f9f9] dark:bg-[#161616] border border-black/10 dark:border-white/10 overflow-hidden transition-colors">
+    <div className="my-3 rounded-[8px] bg-[#f9f9f9] dark:bg-[#161616] border border-black/10 dark:border-white/10 overflow-hidden transition-colors shadow-none">
       <div className="flex items-center justify-between px-3.5 py-1.5 border-b border-black/8 dark:border-white/10 bg-[#f3f3f3] dark:bg-[#202020]">
-        <span className="font-mono text-[12px] uppercase text-[#5d5d5d] dark:text-[#a3a3a3] tracking-wider">
-          {language}
+        <span className="font-mono text-[11.5px] font-semibold text-[#5d5d5d] dark:text-[#a3a3a3] tracking-wider uppercase">
+          {language || 'code'}
         </span>
         <button
           onClick={copyCode}
-          className="flex items-center gap-1.5 text-[12px] text-[#5d5d5d] dark:text-[#a3a3a3] hover:text-[#0d0d0d] dark:hover:text-white transition-colors py-0.5 px-2 rounded-[6px] hover:bg-black/5 dark:hover:bg-white/5"
+          className="flex items-center gap-1.5 text-[12px] text-[#5d5d5d] dark:text-[#a3a3a3] hover:text-[#0d0d0d] dark:hover:text-white transition-colors py-0.5 px-2 rounded-[6px] hover:bg-black/5 dark:hover:bg-white/5 active:scale-95"
         >
           {copied ? (
             <>
@@ -311,7 +432,10 @@ const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, cod
 
       <div className="p-3.5 overflow-x-auto text-[13px] leading-[1.6] font-mono text-[#0d0d0d] dark:text-[#f0f0f0]">
         <pre className="m-0 whitespace-pre">
-          <code>{code}</code>
+          <code 
+            className="hljs"
+            dangerouslySetInnerHTML={{ __html: highlightedHtml }} 
+          />
         </pre>
       </div>
     </div>

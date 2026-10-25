@@ -13,7 +13,8 @@ import {
   X, 
   MessageSquare, 
   PanelLeftClose,
-  MoreHorizontal
+  MoreHorizontal,
+  ShieldCheck
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,6 +29,7 @@ interface SidebarProps {
   onTogglePinChat: (chatId: string) => void;
   onOpenSettings: () => void;
   onOpenProfile: () => void;
+  onOpenLegal?: (tab?: 'privacy' | 'terms' | 'security') => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -42,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onTogglePinChat,
   onOpenSettings,
   onOpenProfile,
+  onOpenLegal,
 }) => {
   const { user, openAuthModal } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -215,17 +218,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center gap-1">
             <button
               onClick={onNewChat}
-              className="p-1.5 rounded-[8px] text-[#0d0d0d] dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              className="p-1.5 rounded-[8px] text-[#0d0d0d] dark:text-white hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all"
               title="Создать новый чат"
             >
               <Plus className="w-4 h-4" />
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-[8px] text-[#5d5d5d] dark:text-[#a3a3a3] hover:text-[#0d0d0d] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-              title="Свернуть боковую панель"
-            >
-              <PanelLeftClose className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -269,11 +265,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Sidebar Footer Block */}
-        <div className="p-3 border-t border-black/10 dark:border-white/10 space-y-2 bg-[#f9f9f9] dark:bg-[#171717] transition-colors">
+        <div className="p-3 border-t border-black/10 dark:border-white/10 space-y-1.5 bg-[#f9f9f9] dark:bg-[#171717] transition-colors">
+          {/* Legal Policies Button */}
+          <button
+            onClick={() => onOpenLegal?.('privacy')}
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-[10px] text-[13px] text-[#0d0d0d] dark:text-[#f0f0f0] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+          >
+            <ShieldCheck className="w-4 h-4 text-[#5d5d5d] dark:text-[#a3a3a3]" />
+            <span>Политики и безопасность</span>
+          </button>
+
           {/* Settings Trigger */}
           <button
             onClick={onOpenSettings}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[10px] text-[13.5px] text-[#0d0d0d] dark:text-[#f0f0f0] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-[10px] text-[13px] text-[#0d0d0d] dark:text-[#f0f0f0] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
           >
             <Settings className="w-4 h-4 text-[#5d5d5d] dark:text-[#a3a3a3]" />
             <span>Настройки платформы</span>
