@@ -62,7 +62,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   initialTab = 'settings',
 }) => {
   const { theme, setTheme } = useTheme();
-  const { tariff, setTariff, usedTokens, maxTokens, percentUsed, percentRemaining, formatTokens } = useLimits();
+  const { tariff, setTariff, usedTokens, maxTokens, percentUsed, percentRemaining, formatTokens, timeUntilReset } = useLimits();
   
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => normalizeTab(initialTab));
   const [promptText, setPromptText] = useState(systemPrompt);
@@ -334,13 +334,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <span>Использовано: {formatTokens(usedTokens)} из {formatTokens(maxTokens)} токенов</span>
                   <span>Осталось: {percentRemaining}%</span>
                 </div>
-                <div className="w-full h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                <div className="w-full h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden mb-2">
                   <div 
                     className={`h-full transition-all duration-500 rounded-full ${
                       percentRemaining === 0 ? 'bg-red-500' : percentRemaining <= 20 ? 'bg-amber-500' : 'bg-[#0d0d0d] dark:bg-white'
                     }`}
                     style={{ width: `${Math.min(100, percentUsed)}%` }}
                   />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-[#8f8f8f] dark:text-[#737373] pt-1 border-t border-black/5 dark:border-white/5">
+                  <span>Восстановление: ежедневно в 08:00 МСК (через {timeUntilReset})</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">Синхронизировано на всех устройствах</span>
                 </div>
               </div>
 

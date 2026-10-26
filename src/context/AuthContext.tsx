@@ -13,7 +13,8 @@ import {
   db, 
   doc, 
   setDoc, 
-  getDoc 
+  getDoc,
+  onSnapshot 
 } from '../firebase';
 import { UserProfile } from '../types';
 
@@ -46,45 +47,56 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    let unsubsDoc: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (unsubsDoc) {
+        unsubsDoc();
+        unsubsDoc = null;
+      }
+
       if (currentUser) {
-        // Sync or retrieve user profile document from Firestore
+        const userDocRef = doc(db, 'users', currentUser.uid);
+
+        // Ensure user doc exists
         try {
-          const userDocRef = doc(db, 'users', currentUser.uid);
           const snap = await getDoc(userDocRef);
-          if (snap.exists()) {
-            setUserProfile(snap.data() as UserProfile);
-          } else {
+          if (!snap.exists()) {
             const newProfile: UserProfile = {
               uid: currentUser.uid,
               displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Пользователь AMEBA',
               email: currentUser.email || '',
               photoURL: currentUser.photoURL || undefined,
+              tariff: 'free',
+              usedTokens: 0,
               createdAt: new Date().toISOString(),
               providerId: currentUser.providerData[0]?.providerId || 'password',
             };
             await setDoc(userDocRef, newProfile);
-            setUserProfile(newProfile);
           }
         } catch (err) {
-          // If firestore rules or offline, fallback to basic auth object profile
-          setUserProfile({
-            uid: currentUser.uid,
-            displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Пользователь AMEBA',
-            email: currentUser.email || '',
-            photoURL: currentUser.photoURL || undefined,
-            createdAt: new Date().toISOString(),
-            providerId: currentUser.providerData[0]?.providerId || 'password',
-          });
+          console.warn('Could not ensure user doc:', err);
         }
+
+        // Live snapshot listener to keep profile (tariff & tokens) synced in real time
+        unsubsDoc = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setUserProfile(docSnap.data() as UserProfile);
+          }
+        }, (err) => {
+          console.warn('Profile snapshot error:', err);
+        });
       } else {
         setUserProfile(null);
       }
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubsDoc) unsubsDoc();
+    };
   }, []);
 
   const openAuthModal = (mode: 'signin' | 'signup' | 'reset' = 'signin') => {

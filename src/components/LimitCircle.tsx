@@ -8,7 +8,7 @@ interface LimitCircleProps {
 }
 
 export const LimitCircle: React.FC<LimitCircleProps> = ({ onClick, className = '', size = 34 }) => {
-  const { percentRemaining, tariffInfo, remainingTokens, maxTokens, formatTokens } = useLimits();
+  const { percentRemaining, tariffInfo, remainingTokens, maxTokens, formatTokens, timeUntilReset } = useLimits();
 
   const strokeWidth = 3;
   const radius = (size - strokeWidth) / 2;
@@ -27,7 +27,7 @@ export const LimitCircle: React.FC<LimitCircleProps> = ({ onClick, className = '
       type="button"
       onClick={onClick}
       className={`group relative inline-flex items-center justify-center rounded-full p-1 hover:bg-black/5 dark:hover:bg-white/5 transition-all active:scale-95 ${className}`}
-      title={`Лимит тарифа ${tariffInfo.name}: ${percentRemaining}% осталось (${formatTokens(remainingTokens)} / ${formatTokens(maxTokens)} токенов). Нажмите для управления тарифами.`}
+      title={`Лимит тарифа ${tariffInfo.name}: ${percentRemaining}% осталось (${formatTokens(remainingTokens)} / ${formatTokens(maxTokens)} токенов). Сброс в 08:00 МСК (через ${timeUntilReset}).`}
       aria-label="Лимиты тарифа"
     >
       <svg width={size} height={size} className="transform -rotate-90">

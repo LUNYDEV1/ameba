@@ -11,7 +11,7 @@ interface ProfileModalProps {
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, onOpenTariffs }) => {
   const { user, userProfile, logout, updateDisplayName } = useAuth();
-  const { tariffInfo, usedTokens, maxTokens, remainingTokens, percentRemaining, percentUsed, formatTokens } = useLimits();
+  const { tariffInfo, usedTokens, maxTokens, remainingTokens, percentRemaining, percentUsed, formatTokens, timeUntilReset } = useLimits();
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(user?.displayName || userProfile?.displayName || '');
   const [savingName, setSavingName] = useState(false);

@@ -37,6 +37,7 @@ export interface UserProfile {
   photoURL?: string;
   tariff?: string;
   usedTokens?: number;
+  lastResetCycle?: string;
   createdAt: string;
   updatedAt?: string;
   providerId?: string;

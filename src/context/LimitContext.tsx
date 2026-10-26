@@ -52,6 +52,31 @@ export const TARIFFS: Record<TariffTier, TariffInfo> = {
   },
 };
 
+/**
+ * Calculates current 8:00 MSK reset cycle ID (YYYY-MM-DD).
+ * 8:00 MSK corresponds to 05:00 UTC.
+ */
+export function getMskResetCycleId(date: Date = new Date()): string {
+  const d = new Date(date.getTime() - 5 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Returns time string remaining until next 08:00 MSK reset.
+ */
+export function getTimeUntilMskReset(): string {
+  const now = new Date();
+  const target = new Date(now);
+  target.setUTCHours(5, 0, 0, 0);
+  if (now.getTime() >= target.getTime()) {
+    target.setUTCDate(target.getUTCDate() + 1);
+  }
+  const diffMs = Math.max(0, target.getTime() - now.getTime());
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  return `${hours} ч ${mins} мин`;
+}
+
 interface LimitContextType {
   tariff: TariffTier;
   tariffInfo: TariffInfo;
@@ -61,6 +86,7 @@ interface LimitContextType {
   percentRemaining: number;
   percentUsed: number;
   isLimitReached: boolean;
+  timeUntilReset: string;
   addTokenUsage: (amount: number) => void;
   setTariff: (tier: TariffTier) => Promise<void>;
   resetTokens: () => void;
@@ -69,11 +95,13 @@ interface LimitContextType {
 
 const STORAGE_TARIFF_KEY = 'ameba_tariff_tier_v1';
 const STORAGE_USED_TOKENS_KEY = 'ameba_used_tokens_v1';
+const STORAGE_LAST_RESET_CYCLE_KEY = 'ameba_last_reset_cycle_v1';
 
 const LimitContext = createContext<LimitContextType | undefined>(undefined);
 
 export const LimitProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user, userProfile } = useAuth();
+  const [timeUntilReset, setTimeUntilReset] = useState<string>(getTimeUntilMskReset());
 
   const [tariff, setTariffState] = useState<TariffTier>(() => {
     const saved = localStorage.getItem(STORAGE_TARIFF_KEY);
@@ -82,34 +110,26 @@ export const LimitProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   });
 
   const [usedTokens, setUsedTokens] = useState<number>(() => {
+    const currentCycle = getMskResetCycleId();
+    const storedCycle = localStorage.getItem(STORAGE_LAST_RESET_CYCLE_KEY);
+    if (storedCycle !== currentCycle) {
+      localStorage.setItem(STORAGE_LAST_RESET_CYCLE_KEY, currentCycle);
+      localStorage.setItem(STORAGE_USED_TOKENS_KEY, '0');
+      return 0;
+    }
     const saved = localStorage.getItem(STORAGE_USED_TOKENS_KEY);
     return saved ? parseInt(saved, 10) || 0 : 0;
   });
 
-  // Sync with Firestore profile when user profile changes
-  useEffect(() => {
-    if (userProfile?.tariff && (userProfile.tariff === 'free' || userProfile.tariff === 'super' || userProfile.tariff === 'ultima')) {
-      setTariffState(userProfile.tariff as TariffTier);
-    }
-    if (typeof userProfile?.usedTokens === 'number') {
-      setUsedTokens(userProfile.usedTokens);
-    }
-  }, [userProfile]);
-
-  const tariffInfo = TARIFFS[tariff];
-  const maxTokens = tariffInfo.maxTokens;
-  const remainingTokens = Math.max(0, maxTokens - usedTokens);
-  const percentRemaining = Math.max(0, Math.min(100, Math.round((remainingTokens / maxTokens) * 100)));
-  const percentUsed = 100 - percentRemaining;
-  const isLimitReached = usedTokens >= maxTokens;
-
-  const syncToCloud = async (newTariff: TariffTier, newUsed: number) => {
+  const syncToCloud = async (newTariff: TariffTier, newUsed: number, cycleId?: string) => {
     if (user?.uid) {
       try {
+        const currentCycle = cycleId || getMskResetCycleId();
         const userDocRef = doc(db, 'users', user.uid);
         await setDoc(userDocRef, {
           tariff: newTariff,
           usedTokens: newUsed,
+          lastResetCycle: currentCycle,
           updatedAt: new Date().toISOString(),
         }, { merge: true });
       } catch (err) {
@@ -118,11 +138,65 @@ export const LimitProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
+  // Sync with Firestore profile when user profile changes (real-time cross-device updates)
+  useEffect(() => {
+    if (!userProfile) return;
+
+    const currentCycle = getMskResetCycleId();
+
+    if (userProfile.tariff && (userProfile.tariff === 'free' || userProfile.tariff === 'super' || userProfile.tariff === 'ultima')) {
+      setTariffState(userProfile.tariff as TariffTier);
+    }
+
+    // Check if daily 8:00 MSK reset is required for logged-in user
+    if (userProfile.lastResetCycle !== currentCycle) {
+      setUsedTokens(0);
+      localStorage.setItem(STORAGE_LAST_RESET_CYCLE_KEY, currentCycle);
+      localStorage.setItem(STORAGE_USED_TOKENS_KEY, '0');
+      syncToCloud(userProfile.tariff as TariffTier || tariff, 0, currentCycle);
+    } else if (typeof userProfile.usedTokens === 'number') {
+      setUsedTokens(userProfile.usedTokens);
+      localStorage.setItem(STORAGE_USED_TOKENS_KEY, userProfile.usedTokens.toString());
+      localStorage.setItem(STORAGE_LAST_RESET_CYCLE_KEY, currentCycle);
+    }
+  }, [userProfile]);
+
+  // Periodic check (every 30s) for 08:00 MSK daily reset & countdown timer update
+  useEffect(() => {
+    const checkReset = () => {
+      setTimeUntilReset(getTimeUntilMskReset());
+      const currentCycle = getMskResetCycleId();
+      const storedCycle = localStorage.getItem(STORAGE_LAST_RESET_CYCLE_KEY);
+      
+      if (storedCycle !== currentCycle) {
+        localStorage.setItem(STORAGE_LAST_RESET_CYCLE_KEY, currentCycle);
+        localStorage.setItem(STORAGE_USED_TOKENS_KEY, '0');
+        setUsedTokens(0);
+        if (user?.uid) {
+          syncToCloud(tariff, 0, currentCycle);
+        }
+      }
+    };
+
+    checkReset();
+    const interval = setInterval(checkReset, 30000);
+    return () => clearInterval(interval);
+  }, [user, tariff]);
+
+  const tariffInfo = TARIFFS[tariff];
+  const maxTokens = tariffInfo.maxTokens;
+  const remainingTokens = Math.max(0, maxTokens - usedTokens);
+  const percentRemaining = Math.max(0, Math.min(100, Math.round((remainingTokens / maxTokens) * 100)));
+  const percentUsed = 100 - percentRemaining;
+  const isLimitReached = usedTokens >= maxTokens;
+
   const addTokenUsage = (amount: number) => {
     setUsedTokens((prev) => {
+      const currentCycle = getMskResetCycleId();
       const next = prev + amount;
       localStorage.setItem(STORAGE_USED_TOKENS_KEY, next.toString());
-      syncToCloud(tariff, next);
+      localStorage.setItem(STORAGE_LAST_RESET_CYCLE_KEY, currentCycle);
+      syncToCloud(tariff, next, currentCycle);
       return next;
     });
   };
@@ -130,13 +204,16 @@ export const LimitProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const setTariff = async (newTier: TariffTier) => {
     setTariffState(newTier);
     localStorage.setItem(STORAGE_TARIFF_KEY, newTier);
-    await syncToCloud(newTier, usedTokens);
+    const currentCycle = getMskResetCycleId();
+    await syncToCloud(newTier, usedTokens, currentCycle);
   };
 
   const resetTokens = () => {
+    const currentCycle = getMskResetCycleId();
     setUsedTokens(0);
     localStorage.setItem(STORAGE_USED_TOKENS_KEY, '0');
-    syncToCloud(tariff, 0);
+    localStorage.setItem(STORAGE_LAST_RESET_CYCLE_KEY, currentCycle);
+    syncToCloud(tariff, 0, currentCycle);
   };
 
   const formatTokens = (num: number): string => {
@@ -154,6 +231,7 @@ export const LimitProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         percentRemaining,
         percentUsed,
         isLimitReached,
+        timeUntilReset,
         addTokenUsage,
         setTariff,
         resetTokens,
@@ -172,3 +250,4 @@ export const useLimits = () => {
   }
   return ctx;
 };
+
