@@ -35,6 +35,8 @@ export interface UserProfile {
   displayName: string;
   email: string;
   photoURL?: string;
+  tariff?: string;
+  usedTokens?: number;
   createdAt: string;
   updatedAt?: string;
   providerId?: string;

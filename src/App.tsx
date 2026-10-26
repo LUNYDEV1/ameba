@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { LimitProvider, useLimits } from './context/LimitContext';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { ChatMessage } from './components/ChatMessage';
@@ -8,8 +9,7 @@ import { Composer } from './components/Composer';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { AuthModal } from './components/AuthModal';
 import { ProfileModal } from './components/ProfileModal';
-import { SettingsModal } from './components/SettingsModal';
-import { LegalModal } from './components/LegalModal';
+import { SettingsModal, LegacySettingsTab } from './components/SettingsModal';
 import { AuthScreen } from './components/AuthScreen';
 import { Chat, Message, ModelOption, AVAILABLE_MODELS } from './types';
 import { ChatStorage } from './services/chatStorage';
@@ -18,6 +18,7 @@ import { AmebaLogo } from './components/AmebaLogo';
 
 function MainApp() {
   const { user } = useAuth();
+  const { addTokenUsage, isLimitReached } = useLimits();
   const [chats, setChats] = useState<Chat[]>(() => ChatStorage.getStoredChats(user?.uid));
   const [currentChatId, setCurrentChatId] = useState<string | null>(() => {
     const stored = ChatStorage.getStoredChats(user?.uid);
@@ -25,21 +26,20 @@ function MainApp() {
   });
   const [messages, setMessages] = useState<Message[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeModel, setActiveModel] = useState<ModelOption>(AVAILABLE_MODELS[0]);
+  const [activeModel] = useState<ModelOption>(AVAILABLE_MODELS[0]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [composerInitialPrompt, setComposerInitialPrompt] = useState('');
   
   // Modals state
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isLegalOpen, setIsLegalOpen] = useState(false);
-  const [legalTab, setLegalTab] = useState<'privacy' | 'terms' | 'security'>('privacy');
+  const [settingsTab, setSettingsTab] = useState<LegacySettingsTab>('settings');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [creativityMode, setCreativityMode] = useState<'precise' | 'balanced' | 'creative'>('balanced');
 
-  const handleOpenLegal = (tab: 'privacy' | 'terms' | 'security' = 'privacy') => {
-    setLegalTab(tab);
-    setIsLegalOpen(true);
+  const handleOpenSettings = (tab: LegacySettingsTab = 'settings') => {
+    setSettingsTab(tab);
+    setIsSettingsOpen(true);
   };
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -48,49 +48,38 @@ function MainApp() {
   // Sync with Firestore and load user chats when user logs in
   useEffect(() => {
     if (user?.uid) {
-      ChatStorage.syncWithFirestore(user.uid);
-      const userChats = ChatStorage.getStoredChats(user.uid);
-      setChats(userChats);
-      if (userChats.length > 0 && !currentChatId) {
-        setCurrentChatId(userChats[0].id);
-      }
+      ChatStorage.syncWithFirestore(user.uid).then(() => {
+        const syncedChats = ChatStorage.getStoredChats(user.uid);
+        setChats(syncedChats);
+        if (syncedChats.length > 0 && !currentChatId) {
+          setCurrentChatId(syncedChats[0].id);
+        }
+      });
     }
   }, [user]);
 
-  // Load messages whenever currentChatId changes
+  // Load messages for selected chat
   useEffect(() => {
     if (currentChatId) {
-      const loaded = ChatStorage.getStoredMessages(currentChatId);
-      setMessages(loaded);
+      const storedMsgs = ChatStorage.getStoredMessages(currentChatId);
+      setMessages(storedMsgs);
     } else {
       setMessages([]);
     }
   }, [currentChatId]);
 
-  // Auto-scroll to bottom of conversation
+  // Auto-scroll to bottom of messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isGenerating]);
+  }, [messages]);
 
-  // Keyboard shortcut: Cmd+K or Ctrl+K for new chat
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        handleNewChat();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
+  // Actions
   const handleNewChat = () => {
-    const newChatId = `chat-${Date.now()}`;
     const newChat: Chat = {
-      id: newChatId,
+      id: `chat-${Date.now()}`,
       userId: user?.uid || 'local',
       title: 'Новый диалог',
-      model: activeModel.id,
+      model: activeModel.name,
       pinned: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -98,100 +87,104 @@ function MainApp() {
 
     const updatedChats = [newChat, ...chats];
     setChats(updatedChats);
-    ChatStorage.saveStoredChats(updatedChats);
-    setCurrentChatId(newChatId);
+    setCurrentChatId(newChat.id);
     setMessages([]);
-    setComposerInitialPrompt('');
+    ChatStorage.saveStoredChats(updatedChats);
   };
 
-  const handleSelectChat = (chatId: string) => {
-    setCurrentChatId(chatId);
-    setComposerInitialPrompt('');
+  const handleSelectChat = (id: string) => {
+    setCurrentChatId(id);
   };
 
-  const handleDeleteChat = (chatId: string) => {
-    const updated = chats.filter(c => c.id !== chatId);
+  const handleDeleteChat = (id: string) => {
+    ChatStorage.deleteStoredChat(id, user?.uid);
+    const updated = chats.filter(c => c.id !== id);
     setChats(updated);
-    ChatStorage.saveStoredChats(updated);
-    if (currentChatId === chatId) {
+    if (currentChatId === id) {
       setCurrentChatId(updated.length > 0 ? updated[0].id : null);
     }
   };
 
-  const handleRenameChat = (chatId: string, newTitle: string) => {
-    const updated = chats.map(c => c.id === chatId ? { ...c, title: newTitle, updatedAt: new Date().toISOString() } : c);
+  const handleRenameChat = (id: string, newTitle: string) => {
+    const updated = chats.map(c => 
+      c.id === id ? { ...c, title: newTitle, updatedAt: new Date().toISOString() } : c
+    );
     setChats(updated);
     ChatStorage.saveStoredChats(updated);
   };
 
-  const handleTogglePinChat = (chatId: string) => {
-    const updated = chats.map(c => c.id === chatId ? { ...c, pinned: !c.pinned } : c);
+  const handleTogglePinChat = (id: string) => {
+    const updated = chats.map(c => 
+      c.id === id ? { ...c, pinned: !c.pinned } : c
+    );
     setChats(updated);
     ChatStorage.saveStoredChats(updated);
+  };
+
+  const handleClearAllChats = () => {
+    chats.forEach(c => ChatStorage.deleteStoredChat(c.id, user?.uid));
+    setChats([]);
+    setCurrentChatId(null);
+    setMessages([]);
   };
 
   const handleClearCurrentChat = () => {
     if (!currentChatId) return;
-    setMessages([]);
     ChatStorage.saveStoredMessages(currentChatId, []);
-  };
-
-  const handleClearAllChats = () => {
-    setChats([]);
-    ChatStorage.saveStoredChats([]);
-    setCurrentChatId(null);
     setMessages([]);
   };
 
   const handleExportMarkdown = () => {
     if (!currentChatId || messages.length === 0) return;
-    const currentChat = chats.find(c => c.id === currentChatId);
-    const title = currentChat ? currentChat.title : 'AMEBA Conversation';
+    const chatTitle = chats.find(c => c.id === currentChatId)?.title || 'AMEBA Chat';
     
-    let md = `# ${title}\n\n*Модель: ${activeModel.name} | Дата: ${new Date().toLocaleDateString()}*\n\n---\n\n`;
-    messages.forEach((m) => {
-      md += `### ${m.role === 'user' ? 'Вы' : 'AMEBA'} (${new Date(m.createdAt).toLocaleTimeString()}):\n\n${m.content}\n\n---\n\n`;
+    let mdContent = `# ${chatTitle}\n\n*Экспорт диалога AMEBA AI (${new Date().toLocaleDateString('ru-RU')})*\n\n---\n\n`;
+    messages.forEach(m => {
+      const sender = m.role === 'user' ? 'Пользователь' : 'AMEBA AI';
+      mdContent += `### **${sender}**:\n${m.content}\n\n`;
     });
 
-    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${title.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '_')}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${chatTitle.toLowerCase().replace(/\s+/g, '_')}.md`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleSendMessage = async (
-    content: string,
+    content: string, 
     options: { webSearch: boolean; thinkingMode: boolean; attachedFile?: string }
   ) => {
+    if (isLimitReached) {
+      handleOpenSettings('tariffs');
+      return;
+    }
     let chatId = currentChatId;
 
-    // If no chat active, create one on the fly
+    // Create a new chat if none selected
     if (!chatId) {
-      const newChatId = `chat-${Date.now()}`;
-      const titleFromPrompt = content.length > 35 ? content.slice(0, 35) + '...' : content;
       const newChat: Chat = {
-        id: newChatId,
+        id: `chat-${Date.now()}`,
         userId: user?.uid || 'local',
-        title: titleFromPrompt,
-        model: activeModel.id,
+        title: content.slice(0, 30) || 'Новый диалог',
+        model: activeModel.name,
         pinned: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const updated = [newChat, ...chats];
-      setChats(updated);
-      ChatStorage.saveStoredChats(updated);
-      chatId = newChatId;
-      setCurrentChatId(newChatId);
+      const updatedChats = [newChat, ...chats];
+      setChats(updatedChats);
+      setCurrentChatId(newChat.id);
+      chatId = newChat.id;
+      ChatStorage.saveStoredChats(updatedChats);
     } else {
-      // Update chat title if it was "Новый диалог" and it's the first message
-      const current = chats.find(c => c.id === chatId);
-      if (current && (current.title === 'Новый диалог' || messages.length === 0)) {
-        const titleFromPrompt = content.length > 35 ? content.slice(0, 35) + '...' : content;
-        handleRenameChat(chatId, titleFromPrompt);
+      // Auto-update title for initial default name
+      const curr = chats.find(c => c.id === chatId);
+      if (curr && curr.title === 'Новый диалог' && messages.length === 0) {
+        handleRenameChat(chatId, content.slice(0, 32));
       }
     }
 
@@ -285,9 +278,12 @@ function MainApp() {
       if (user?.uid) {
         ChatStorage.persistMessageToFirestore(chatId, finalAssistantMsg, user.uid);
       }
+
+      // Calculate token consumption for the prompt + completion pair
+      const consumed = Math.max(800, Math.round((content.length + result.content.length) * 1.5));
+      addTokenUsage(consumed);
     } catch (err: unknown) {
       if (abortController.signal.aborted) {
-        // Generation was intentionally stopped
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantMsgId
@@ -319,12 +315,11 @@ function MainApp() {
   const handleStopGeneration = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
+      setIsGenerating(false);
     }
-    setIsGenerating(false);
   };
 
   const handleRegenerateLast = () => {
-    if (messages.length === 0) return;
     const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
     if (lastUserMsg) {
       const trimmed = messages.filter((_, idx) => idx !== messages.length - 1);
@@ -352,9 +347,8 @@ function MainApp() {
         onDeleteChat={handleDeleteChat}
         onRenameChat={handleRenameChat}
         onTogglePinChat={handleTogglePinChat}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSettings={handleOpenSettings}
         onOpenProfile={() => setIsProfileOpen(true)}
-        onOpenLegal={handleOpenLegal}
       />
 
       {/* Main Conversation Canvas */}
@@ -367,7 +361,7 @@ function MainApp() {
           onNewChat={handleNewChat}
           onClearCurrentChat={handleClearCurrentChat}
           onExportMarkdown={handleExportMarkdown}
-          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenSettings={() => handleOpenSettings('general')}
         />
 
         {/* Content Area: Chat Thread or Welcome Screen */}
@@ -400,6 +394,7 @@ function MainApp() {
             onStopGeneration={handleStopGeneration}
             activeModel={activeModel}
             initialPrompt={composerInitialPrompt}
+            onOpenTariffs={() => handleOpenSettings('tariffs')}
           />
         </footer>
       </div>
@@ -408,9 +403,10 @@ function MainApp() {
       <ProfileModal 
         isOpen={isProfileOpen} 
         onClose={() => setIsProfileOpen(false)} 
+        onOpenTariffs={() => handleOpenSettings('tariffs')}
       />
 
-      {/* Settings Modal */}
+      {/* Unified Settings & Legal Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -421,14 +417,7 @@ function MainApp() {
         chats={chats}
         onClearAllChats={handleClearAllChats}
         currentChatTitle={currentChat?.title}
-        onOpenLegal={handleOpenLegal}
-      />
-
-      {/* Legal & Policies Modal */}
-      <LegalModal
-        isOpen={isLegalOpen}
-        onClose={() => setIsLegalOpen(false)}
-        defaultTab={legalTab}
+        initialTab={settingsTab}
       />
 
       {/* Optional Auth Modal for re-auth if needed */}
@@ -439,13 +428,8 @@ function MainApp() {
 
 function AppRoot() {
   const { user, loading } = useAuth();
-  const [isLegalOpen, setIsLegalOpen] = useState(false);
-  const [legalTab, setLegalTab] = useState<'privacy' | 'terms' | 'security'>('privacy');
-
-  const handleOpenLegal = (tab: 'privacy' | 'terms' | 'security' = 'privacy') => {
-    setLegalTab(tab);
-    setIsLegalOpen(true);
-  };
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<LegacySettingsTab>('legal');
 
   if (loading) {
     return (
@@ -462,11 +446,22 @@ function AppRoot() {
   if (!user) {
     return (
       <>
-        <AuthScreen onOpenLegal={handleOpenLegal} />
-        <LegalModal
-          isOpen={isLegalOpen}
-          onClose={() => setIsLegalOpen(false)}
-          defaultTab={legalTab}
+        <AuthScreen 
+          onOpenLegal={(tab) => { 
+            setSettingsTab(tab || 'payment-legal'); 
+            setIsSettingsOpen(true); 
+          }} 
+        />
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          systemPrompt=""
+          onSaveSystemPrompt={() => {}}
+          creativityMode="balanced"
+          onChangeCreativityMode={() => {}}
+          chats={[]}
+          onClearAllChats={() => {}}
+          initialTab={settingsTab}
         />
       </>
     );
@@ -479,7 +474,9 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <AppRoot />
+        <LimitProvider>
+          <AppRoot />
+        </LimitProvider>
       </AuthProvider>
     </ThemeProvider>
   );

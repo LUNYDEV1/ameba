@@ -4,8 +4,10 @@ import { ArrowRight, CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
 import { AmebaLogo } from './AmebaLogo';
 import { SmartCaptcha } from '@yandex/smart-captcha';
 
+import { LegacySettingsTab } from './SettingsModal';
+
 interface AuthScreenProps {
-  onOpenLegal?: (tab?: 'privacy' | 'terms' | 'security') => void;
+  onOpenLegal?: (tab?: LegacySettingsTab) => void;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onOpenLegal }) => {
@@ -278,20 +280,28 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onOpenLegal }) => {
         </div>
       </main>
 
-      {/* Footer copyright & Policy Links */}
-      <footer className="w-full max-w-[1200px] mx-auto text-center py-2 text-[12px] text-[#8f8f8f] dark:text-[#737373] flex flex-wrap items-center justify-center gap-3">
+      {/* Footer copyright & Payment Gateway Compliance Links */}
+      <footer className="w-full max-w-[1200px] mx-auto text-center py-2 text-[12px] text-[#8f8f8f] dark:text-[#737373] flex flex-wrap items-center justify-center gap-2.5">
         <span>© AMEBA AI.</span>
-        <button onClick={() => onOpenLegal?.('privacy')} className="hover:underline text-[#0d0d0d] dark:text-[#f0f0f0]">
+        <button onClick={() => onOpenLegal?.('legal')} className="hover:underline text-[#0d0d0d] dark:text-[#f0f0f0]">
           Политика конфиденциальности
         </button>
         <span>•</span>
-        <button onClick={() => onOpenLegal?.('terms')} className="hover:underline text-[#0d0d0d] dark:text-[#f0f0f0]">
-          Условия использования
+        <button onClick={() => onOpenLegal?.('legal')} className="hover:underline text-[#0d0d0d] dark:text-[#f0f0f0]">
+          Публичная оферта
         </button>
         <span>•</span>
-        <button onClick={() => onOpenLegal?.('security')} className="hover:underline text-[#0d0d0d] dark:text-[#f0f0f0]">
-          Защита данных
+        <button onClick={() => onOpenLegal?.('tariffs')} className="hover:underline text-[#0d0d0d] dark:text-[#f0f0f0]">
+          Тарифы
         </button>
+        <span>•</span>
+        <a href="https://t.me/hcoder0" target="_blank" rel="noopener noreferrer" className="hover:underline text-[#0d0d0d] dark:text-[#f0f0f0]">
+          Поддержка: @hcoder0
+        </a>
+        <span>•</span>
+        <a href="mailto:altaicoder@gmail.com" className="hover:underline text-[#0d0d0d] dark:text-[#f0f0f0]">
+          altaicoder@gmail.com
+        </a>
       </footer>
     </div>
   );

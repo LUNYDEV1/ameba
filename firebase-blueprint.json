@@ -8,6 +8,8 @@
         "displayName": { "type": "string", "maxLength": 100 },
         "email": { "type": "string", "maxLength": 200 },
         "photoURL": { "type": "string", "maxLength": 500 },
+        "tariff": { "type": "string", "maxLength": 32 },
+        "usedTokens": { "type": "number" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },

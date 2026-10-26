@@ -2,12 +2,15 @@ import React, { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { ArrowUp, Square, Globe, Paperclip, X, Brain } from 'lucide-react';
 import { ModelOption } from '../types';
 
+import { LimitCircle } from './LimitCircle';
+
 interface ComposerProps {
   onSendMessage: (content: string, options: { webSearch: boolean; thinkingMode: boolean; attachedFile?: string }) => void;
   isGenerating: boolean;
   onStopGeneration: () => void;
   activeModel: ModelOption;
   initialPrompt?: string;
+  onOpenTariffs?: () => void;
 }
 
 export const Composer: React.FC<ComposerProps> = ({
@@ -16,6 +19,7 @@ export const Composer: React.FC<ComposerProps> = ({
   onStopGeneration,
   activeModel,
   initialPrompt = '',
+  onOpenTariffs,
 }) => {
   const [text, setText] = useState('');
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
@@ -157,7 +161,8 @@ export const Composer: React.FC<ComposerProps> = ({
             </button>
           </div>
 
-          <div>
+          <div className="flex items-center gap-2">
+            <LimitCircle onClick={onOpenTariffs} />
             {isGenerating ? (
               <button
                 type="button"

@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { X, LogOut, Edit2, ShieldCheck, Mail, KeyRound } from 'lucide-react';
+import { useLimits } from '../context/LimitContext';
+import { X, LogOut, Edit2, ShieldCheck, Mail, KeyRound, CreditCard, Gauge } from 'lucide-react';
 
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenTariffs?: () => void;
 }
 
-export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
+export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, onOpenTariffs }) => {
   const { user, userProfile, logout, updateDisplayName } = useAuth();
+  const { tariffInfo, usedTokens, maxTokens, remainingTokens, percentRemaining, percentUsed, formatTokens } = useLimits();
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(user?.displayName || userProfile?.displayName || '');
   const [savingName, setSavingName] = useState(false);
@@ -69,6 +72,58 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
               </h2>
             </div>
             <p className="text-[13px] text-[#5d5d5d] dark:text-[#a3a3a3]">{user.email}</p>
+          </div>
+        </div>
+
+        {/* Tariff & Limits Card */}
+        <div className="p-4 rounded-[12px] bg-[#f5f5f5] dark:bg-[#202020] border border-black/10 dark:border-white/10 mb-6 text-[13px]">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5 font-semibold text-[#0d0d0d] dark:text-[#f0f0f0]">
+              <Gauge className="w-4 h-4 text-[#0d0d0d] dark:text-white" />
+              <span>Тариф и лимиты</span>
+            </div>
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-[4px] bg-[#0d0d0d] dark:bg-white text-white dark:text-[#0d0d0d]">
+              {tariffInfo.name} ({tariffInfo.multiplier})
+            </span>
+          </div>
+
+          <div className="space-y-2 mt-3">
+            <div className="flex items-center justify-between text-[12px]">
+              <span className="text-[#5d5d5d] dark:text-[#a3a3a3]">Использовано токенов:</span>
+              <span className="font-mono font-medium text-[#0d0d0d] dark:text-[#f0f0f0]">
+                {formatTokens(usedTokens)} / {formatTokens(maxTokens)} ({percentUsed}%)
+              </span>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="w-full h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-500 rounded-full ${
+                  percentRemaining === 0 ? 'bg-red-500' : percentRemaining <= 20 ? 'bg-amber-500' : 'bg-[#0d0d0d] dark:bg-white'
+                }`}
+                style={{ width: `${Math.min(100, percentUsed)}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-[#5d5d5d] dark:text-[#a3a3a3] pt-1">
+              <span>Остаток: {formatTokens(remainingTokens)} ({percentRemaining}%)</span>
+              <span>{tariffInfo.timeEstimate}</span>
+            </div>
+
+            <div className="text-[11px] text-[#8f8f8f] dark:text-[#737373] mt-1 pt-1 border-t border-black/5 dark:border-white/5 flex items-center justify-between">
+              <span>Обновление лимитов: 1-го числа</span>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenTariffs?.();
+                }}
+                className="font-medium text-[#0d0d0d] dark:text-white hover:underline flex items-center gap-1"
+              >
+                <CreditCard className="w-3 h-3" />
+                <span>Увеличить лимиты</span>
+              </button>
+            </div>
           </div>
         </div>
 

@@ -12,9 +12,7 @@ import {
   Check, 
   X, 
   MessageSquare, 
-  PanelLeftClose,
-  MoreHorizontal,
-  ShieldCheck
+  MoreHorizontal
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -27,9 +25,8 @@ interface SidebarProps {
   onDeleteChat: (chatId: string) => void;
   onRenameChat: (chatId: string, newTitle: string) => void;
   onTogglePinChat: (chatId: string) => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (tab?: 'settings' | 'tariffs' | 'data' | 'legal' | 'general' | 'system' | 'ai-legal' | 'payment-legal') => void;
   onOpenProfile: () => void;
-  onOpenLegal?: (tab?: 'privacy' | 'terms' | 'security') => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -44,7 +41,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onTogglePinChat,
   onOpenSettings,
   onOpenProfile,
-  onOpenLegal,
 }) => {
   const { user, openAuthModal } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -265,23 +261,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Sidebar Footer Block */}
-        <div className="p-3 border-t border-black/10 dark:border-white/10 space-y-1.5 bg-[#f9f9f9] dark:bg-[#171717] transition-colors">
-          {/* Legal Policies Button */}
-          <button
-            onClick={() => onOpenLegal?.('privacy')}
-            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-[10px] text-[13px] text-[#0d0d0d] dark:text-[#f0f0f0] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-          >
-            <ShieldCheck className="w-4 h-4 text-[#5d5d5d] dark:text-[#a3a3a3]" />
-            <span>Политики и безопасность</span>
-          </button>
-
+        <div className="p-3 border-t border-black/10 dark:border-white/10 space-y-1 bg-[#f9f9f9] dark:bg-[#171717] transition-colors">
           {/* Settings Trigger */}
           <button
-            onClick={onOpenSettings}
-            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-[10px] text-[13px] text-[#0d0d0d] dark:text-[#f0f0f0] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            onClick={() => onOpenSettings('general')}
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-[10px] text-[13px] text-[#0d0d0d] dark:text-[#f0f0f0] hover:bg-black/5 dark:hover:bg-white/5 transition-colors font-medium"
           >
             <Settings className="w-4 h-4 text-[#5d5d5d] dark:text-[#a3a3a3]" />
-            <span>Настройки платформы</span>
+            <span>Параметры AMEBA</span>
           </button>
 
           {/* User Account */}
